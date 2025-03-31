@@ -10,11 +10,13 @@ import numpy as np
 import requests
 from tqdm import tqdm
 
-from emma.embedding.embedding_handler_selector import select_embedding_handler
-from emma.embedding.embedding_model_metadata_handler import (
+from plm_embeddings.embedding_handler_selector import select_embedding_handler
+from plm_embeddings.embedding_model_metadata_handler import (
     EmbeddingModelMetadataHandler,
 )
-from emma.utils import read_fasta_names, read_fasta, write_fasta, setup_logger
+from plm_embeddings.utils import (
+    read_fasta_names, read_fasta, write_fasta, setup_logger
+    )
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -27,22 +29,20 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Path to a FASTA file containing protein sequences or \
             a list of protein names",
-        # default = "examples/phages/foldseek_clusterreps_7k_function_500_hyp.fasta"
-        # default="examples/deeploc/data/deeploc_train.fasta",
-        default="examples/Pla2g2/Pla2g2.fasta",
+        default="examples/ian/sequences-func.fasta",
     )
     parser.add_argument(
         "-m",
         "--model",
         type=str,
         help="Name of the embedding model to be used",
-        default="Rostlab/ProstT5",
+        default="Rostlab/prot_t5_xl_uniref50",
     )
     parser.add_argument(
         "-o",
         "--output_dir",
         type=str,
-        default="embeddings",
+        default="examples/ian/embeddings",
         help="Output directory for storing embeddings",
     )
     parser.add_argument(
@@ -69,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=-1,
         help="Layer index to extract embeddings from",
+    )
+    parser.add_argument(
+        "--per_protein",
+        type=bool,
+        default=False,
+        help="Aggregate embeddings per protein",
     )
     parser.add_argument(
         "--output_format",
@@ -98,8 +104,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model_dir",
         type=str,
-        default="/scratch/protein_models/",
-        help="Directory for model output. Should be a non-empty string or missing.",
+        default="/Users/pia/Developer/ema/protein_models",
+        help="Directory for model output. Should be a non-empty string or \
+            missing.",
     )
     return parser.parse_args()
 
@@ -228,7 +235,8 @@ def validate_parameters(
         bidrectional (bool): Whether to chop sequences from both directions.
         layer (ing): Layer index to extract embeddings from.
         no_gpu (bool): Whether to disable GPU usage (must be a boolean).
-        model_dir (str): Directory for model output. Should be a non-empty string or missing.
+        model_dir (str): Directory for model output. Should be a non-empty \
+            string or missing.
         dev (bool): Whether to use development mode (must be a boolean).
 
     Raises:
@@ -620,6 +628,7 @@ def get_embeddings(
     logger: Optional[logging.Logger] = None,
     model_dir: Optional[str] = None,
     bidirectional: bool = True,
+    per_protein: bool = True,
     **kwargs,
 ) -> None:
     """
@@ -643,6 +652,8 @@ def get_embeddings(
             the embeddings. Default is npy file.
         bidirectional (bool, default=True): Whether to chop sequences from \
             both directions.
+        per_protein: bool, default=True: Whether to aggregate embeddings \
+            per protein.
         **kwargs: Additional arguments for the embedding handler.
 
     Raises:
@@ -796,12 +807,13 @@ def get_embeddings(
             layer=layer,
             truncation_seq_length=max_seq_length,
             model_dir=model_dir,
+            per_protein=per_protein,
             # add batch size parameter
             **kwargs,
         )
 
     # aggregate embeddings
-    if max_seq_length:
+    if max_seq_length and per_protein:
         logger.info(
             f"Aggregating embeddings for {len(long_proteins)} proteins."
         )

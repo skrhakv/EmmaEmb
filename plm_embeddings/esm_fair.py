@@ -5,19 +5,19 @@ from typing import List
 import numpy as np
 import torch
 
-from emma.embedding.embedding_handler import EmbeddingHandler
-from emma.embedding.embedding_model_metadata_handler import (
+from plm_embeddings.embedding_handler import EmbeddingHandler
+from plm_embeddings.embedding_model_metadata_handler import (
     EmbeddingModelMetadataHandler,
 )
-from emma.utils import write_fasta
+from plm_embeddings.utils import write_fasta
 
-from esm import (
-    Alphabet,
-    FastaBatchedDataset,
-    ProteinBertModel,
-    pretrained,
-    MSATransformer,
-)
+# from esm import (
+#     Alphabet,
+#     FastaBatchedDataset,
+#     ProteinBertModel,
+#     pretrained,
+#     MSATransformer,
+# )
 
 
 # Script kindly provided by Facebook AI Research (FAIR)

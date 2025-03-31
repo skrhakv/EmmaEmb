@@ -31,7 +31,7 @@ class EmbeddingHandler(ABC):
 
     @abstractmethod
     def get_embedding(
-        self, protein_sequences: dict, model_id, output_dir: str, layer: int, model_dir: str
+        self, protein_sequences: dict, model_id, output_dir: str, layer: int, model_dir: str, per_protein: bool
     ):
         pass
 

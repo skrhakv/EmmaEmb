@@ -12,8 +12,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 import ankh
 
-from emma.embedding.embedding_handler import EmbeddingHandler
-from emma.embedding.embedding_model_metadata_handler import (
+from plm_embeddings.embedding_handler import EmbeddingHandler
+from plm_embeddings.embedding_model_metadata_handler import (
     EmbeddingModelMetadataHandler,
 )
 

@@ -1,12 +1,12 @@
 import logging
 
-from emma.embedding.embedding_model_metadata_handler import (
+from plm_embeddings.embedding_model_metadata_handler import (
     EmbeddingModelMetadataHandler,
 )
 # from emma.embedding.esm3 import Esm3
-from emma.embedding.t5 import T5
-from emma.embedding.esm_fair import EsmFair
-from emma.embedding.ankh_models import Ankh
+from plm_embeddings.t5 import T5
+from plm_embeddings.esm_fair import EsmFair
+from plm_embeddings.ankh_models import Ankh
 
 
 def select_embedding_handler(
