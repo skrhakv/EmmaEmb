@@ -7,20 +7,23 @@ import scipy.stats as stats
 import pingouin as pg
 
 from scipy.stats import spearmanr
-from emma.ema import EmbeddingHandler
+from emmaemb.core import Emma
 
-from emma.knn_analysis import (
-    get_knn_alignment_scores,
+from emmaemb.functions import get_knn_alignment_scores
+
+from emmaemb.vizualisation import (
     plot_knn_alignment_across_embedding_spaces,
-    plot_knn_alignment_across_features,
-    plot_class_mixing_heatmap,
+    plot_knn_alignment_across_classes,
+    plot_knn_class_mixing_matrix,
 )
 
 # parameter for this script
-figures_to_be_plotted = [  # 'Fig_A',
-    # 'Fig_B',
-    # 'Fig_C',
-    "Fig_D"
+figures_to_be_plotted = [  
+    #'Fig_A',
+    #'Fig_B',
+    #'Fig_C',
+    #"Fig_D",
+    "knn_align_eval",
 ]
 output_dir = "figures/"
 distance_metric = "cosine"
@@ -142,7 +145,7 @@ if "Fig_C" in figures_to_be_plotted:
     )
 
 
-fp_metadata = "examples/deeploc/data/deeploc_train_features.csv"
+fp_metadata = "examples/deeploc/deeploc_train_features.csv"
 metadata = pd.read_csv(fp_metadata)
 # rename subcellular localization column
 sub_loc_abbreviation_mapping = {
@@ -162,16 +165,16 @@ metadata["Subcellular Localization"] = metadata["subcellular_location"].map(
 )
 
 
-embedding_dir = "embeddings/"
+embedding_dir = "examples/deeploc/embeddings/"
 models = {
-    "Ankh": "ankh_base/layer_None/chopped_1022_overlap_300",
-    "ESM2": "esm2_t36_3B_UR50D/layer_36/chopped_1022_overlap_300",
-    "ProstT5": "Rostlab/ProstT5/layer_None/chopped_1022_overlap_300",
-    "ProtT5": "Rostlab/prot_t5_xl_uniref50/layer_None/chopped_1022_overlap_300",
+    "Ankh": "Ankh",
+    "ESM2": "ESM2",
+    "ProstT5": "ProstT5",
+    "ProtT5": "ProtT5",
 }
 
 
-ema = EmbeddingHandler(sample_meta_data=metadata)
+ema = Emma(feature_data=metadata)
 for model_alias, model_name in models.items():
     ema.add_emb_space(
         embeddings_source=embedding_dir + model_name,
@@ -240,7 +243,7 @@ if ("Fig_A" in figures_to_be_plotted) or ("Fig_B" in figures_to_be_plotted):
 
     if "Fig_B" in figures_to_be_plotted:
 
-        fig_B = plot_knn_alignment_across_features(
+        fig_B = plot_knn_alignment_across_classes(
             knn_alignment_scores,
             embedding_order=["ProstT5", "ESM2", "Ankh", "ProtT5"],
         )
@@ -294,7 +297,7 @@ if ("Fig_A" in figures_to_be_plotted) or ("Fig_B" in figures_to_be_plotted):
 # Figure D
 if "Fig_D" in figures_to_be_plotted:
 
-    fig_D = plot_class_mixing_heatmap(
+    fig_D = plot_knn_class_mixing_matrix(
         ema,
         embedding_space="ProtT5",
         feature="Subcellular Localization",
@@ -343,6 +346,217 @@ if "Fig_D" in figures_to_be_plotted:
         output_dir + "fig_3_D.png", format="png", width=4000, height=2400
     )
 
+if "knn_align_eval":
+
+    distance_metrics = ['euclidean', 'cityblock', 'cosine']
+    
+    backup_dir = os.path.join("examples/deeploc/pwd_backup")
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    num_samples = len(ema.metadata)
+    
+    for distance_metric in distance_metrics:
+        for model in models.keys():
+            print(f"\nProcessing {model} with {distance_metric}...")
+
+            pwd_path = os.path.join(backup_dir, f"{model}_{distance_metric}_pwd.npy")
+            ranks_path = os.path.join(backup_dir, f"{model}_{distance_metric}_ranks.npy")
+
+            # Load if both files exist
+            if os.path.exists(pwd_path) and os.path.exists(ranks_path):
+                print("Found cached distances and ranks. Loading...")
+                pwd = np.load(pwd_path)
+                ranks = np.load(ranks_path)
+
+                # Check shape consistency
+                if pwd.shape != (num_samples, num_samples) or ranks.shape != (num_samples, num_samples):
+                    raise ValueError(f"Shape mismatch: expected ({num_samples}, {num_samples}), "
+                                    f"got {pwd.shape} and {ranks.shape} for {model} - {distance_metric}")
+
+                # check if ema.emb[model]["pairwise_distances"] exists
+                if "pairwise_distances" not in ema.emb[model]:
+                    ema.emb[model]["pairwise_distances"] = {}
+                    ema.emb[model]["ranks"] = {}
+                
+                ema.emb[model]["pairwise_distances"][distance_metric] = pwd
+                ema.emb[model]["ranks"][distance_metric] = ranks
+
+            else:
+                print("No cached data found. Recalculating...")
+                ema.calculate_pairwise_distances(
+                    emb_space=model,
+                    metric=distance_metric,
+                )
+
+                pwd = ema.emb[model]["pairwise_distances"][distance_metric]
+                ranks = ema.emb[model]["ranks"][distance_metric]
+
+                # Validate shape before saving
+                if pwd.shape != (num_samples, num_samples) or ranks.shape != (num_samples, num_samples):
+                    raise ValueError(f"Calculated data has unexpected shape for {model} - {distance_metric}")
+
+                # Save new calculations
+                np.save(pwd_path, pwd)
+                np.save(ranks_path, ranks)
+    
+    k = [1, 5, 10, 20, 50, 75, 100]
+    
+    # calculate knn_alignment score for each model, distance_metric and k
+    # store in a joint data frame with columns Sample, Class, Fraction, Embedding, k, distance_metric
+
+    knn_alignment_scores_df = pd.DataFrame(columns=["Sample", "Class", "Fraction", "Embedding", "k", "distance_metric"])
+    protein_ids = ema.metadata["protein_name"]
+    
+    for distance_metric in distance_metrics:
+        for k_value in k:
+            print(f"Calculating KNN alignment scores for {distance_metric} with k={k_value}...")
+            knn_alignment_scores = get_knn_alignment_scores(
+                ema,
+                feature="Subcellular Localization",
+                k=k_value,
+                metric=distance_metric,
+            )
+            knn_alignment_scores["k"] = k_value
+            knn_alignment_scores["distance_metric"] = distance_metric
+            knn_alignment_scores["Sample"] = np.tile(protein_ids, len(models))
+            
+            # merge with the existing dataframe
+            knn_alignment_scores_df = pd.concat([knn_alignment_scores_df, knn_alignment_scores], ignore_index=True)
+            print()
+
+    df_grouped = (
+        knn_alignment_scores_df
+        .groupby(["k", "Embedding", "distance_metric"], as_index=False)
+        .agg({"Fraction": "mean"})
+    )
+
+    # Create line plot with one facet per distance_metric
+    fig = px.line(
+        df_grouped,
+        x="k",
+        y="Fraction",
+        color="Embedding",
+        facet_col="distance_metric",
+        markers=True,
+        title="Mean KNN alignement scores per k across Embeddings and Distance Metrics"
+    )
+
+    fig.update_layout(
+        template="plotly_white",
+        font={"family": "Inter", "color": "black"},
+        legend_title_text="Embedding",
+        # rename y axis title
+        yaxis_title="Mean KNN feature alignment score",
+        height=500,
+    )
+    
+    fig.show()
+    
+    # with error bars
+    # Group by to compute mean and std of Fraction
+    df_grouped = (
+        knn_alignment_scores_df
+        .groupby(["k", "Embedding", "distance_metric"], as_index=False)
+        .agg(
+            mean_Fraction=("Fraction", "mean"),
+            std_Fraction=("Fraction", "std")
+        )
+    )
+
+    # Create line plot with one facet per distance_metric
+    fig = px.line(
+        df_grouped,
+        x="k",
+        y="mean_Fraction",
+        color="Embedding",
+        facet_col="distance_metric",
+        markers=True,
+        title="Mean KNN alignment score per k across Embeddings and Distance Metrics",
+        error_y="std_Fraction",  # Adds standard deviation as error bars
+    )
+
+    # Update layout and style
+    fig.update_layout(
+        template="plotly_white",
+        font={"family": "Inter", "color": "black"},
+        legend_title_text="Embedding",
+        yaxis_title="Mean KNN feature alignment score and std",
+        height=500,
+    )
+    fig.show()
+    
+    # median scores
+    df_grouped = (
+        knn_alignment_scores_df
+        .groupby(["k", "Embedding", "distance_metric"], as_index=False)
+        .agg({"Fraction": "median"})
+    )
+
+    # Create line plot with one facet per distance_metric
+    fig = px.line(
+            df_grouped,
+            x="k",
+            y="Fraction",
+            color="Embedding",
+            facet_col="distance_metric",
+            markers=True,
+            title="Median KNN alignement scores per k across Embeddings and Distance Metrics"
+        )
+
+    fig.update_layout(
+            template="plotly_white",
+            font={"family": "Inter", "color": "black"},
+            legend_title_text="Embedding",
+            # rename y axis title
+            yaxis_title="Median KNN feature alignment score",
+            height=500,
+        )
+    fig.show()
+    print()
+    
+    
+    # heatmap
+    df_grouped_heatmap = (
+        knn_alignment_scores_df
+        .groupby(["k", "Class", "distance_metric", "Embedding"], as_index=False)
+        .agg(mean_Fraction=("Fraction", "mean"))
+    )
+    
+    k_values = [1, 5, 10, 20, 50, 75, 100]
+    color_scale = [[0, 'lightblue'], [1, 'darkblue']]
+    
+    for distance_metric in distance_metrics:
+        for model in models.keys():
+            print(f"Plotting heatmap for {model} with {distance_metric}...")
+            df_heatmap = df_grouped_heatmap[(df_grouped_heatmap["distance_metric"] == distance_metric) & (df_grouped_heatmap["Embedding"] == model)]
+            df_heatmap = df_heatmap.pivot(index="Class", columns="k", values="mean_Fraction")
+            
+            # Create heatmap using px.imshow with categorical x-axis and custom color scale
+            fig = px.imshow(
+                df_heatmap,
+                color_continuous_scale=color_scale,  # Use custom color scale
+                aspect="auto",  # Ensure the aspect ratio is automatically adjusted
+                title=f"Mean KNN alignment scores for {model} with {distance_metric}",
+            )
+
+            # Customize x-axis to treat 'k' as categorical but ordered according to predefined k list
+            fig.update_layout(
+                xaxis=dict(
+                    type='category',  # Treat x-axis as categorical
+                    title="k",  # Set the x-axis title
+                    categoryorder='array',  # Ensure k is ordered based on a custom array
+                    categoryarray=[str(k_val) for k_val in k_values],  # Order by predefined k list
+                ),
+                coloraxis_colorbar=dict(
+                    title="Mean Fraction",
+                ),
+                template="plotly_white",
+                font={"family": "Inter", "color": "black"},
+                width=800,
+                height=800,
+            )
+
+            fig.show()
 
 print()
 # check how to export in high quality

@@ -1,7 +1,7 @@
 import pandas as pd
 
 from emmaemb.core import Emma
-from emmaemb.vizualization import (
+from emmaemb.vizualisation import (
     plot_emb_dis_scatter, 
     plot_knn_alignment_across_embedding_spaces,
 )
