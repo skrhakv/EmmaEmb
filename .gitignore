@@ -8,3 +8,5 @@ embeddings/**
 dist/
 .vscode/**
 .slurm/**
+protein_models/** 
+examples/ian/embeddings
