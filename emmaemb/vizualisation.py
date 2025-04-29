@@ -380,6 +380,9 @@ def plot_knn_alignment_across_embedding_spaces(
     metric: str = "euclidean",
     emb_space_order: list = None,
     color: str = "#303496",
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
 ):
     """
     Function to plot KNN alignment scores for a given feature \
@@ -396,12 +399,18 @@ def plot_knn_alignment_across_embedding_spaces(
             embedding spaces. Defaults to None.
         color (str, optional): Colour of the plot elements. \
             Defaults to "#303496".
+        use_annoy (bool, optional): Whether to use Annoy index. \
+            Defaults to False.
+        annoy_metric (str, optional): Annoy distance metric to use. \
+            Defaults to None.
+        n_trees (int, optional): Number of trees used to build the Annoy index. \
+            Defaults to None.
         
     Returns:
         go.Figure: A box plot of KNN alignment scores across embedding spaces.
     """
 
-    df = get_knn_alignment_scores(emma, feature, k, metric)
+    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees)
     fig = px.box(
         df,
         x="Embedding",
@@ -430,6 +439,9 @@ def plot_knn_alignment_across_classes(
     metric: str = "euclidean",
     emb_space_order: list = None,
     color: str = "#303496",
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
 ) -> go.Figure:
     """Function to plot KNN alignment scores for a given feature across \
     multiple embedding spaces.
@@ -444,11 +456,17 @@ def plot_knn_alignment_across_classes(
             embedding spaces. Defaults to None.
         color (str, optional): Colour of the plot elements. \
             Defaults to "#303496".
+        use_annoy (bool, optional): Whether to use Annoy index. \
+            Defaults to False.
+        annoy_metric (str, optional): Annoy distance metric to use. \
+            Defaults to None.
+        n_trees (int, optional): Number of trees used to build the Annoy index. \
+            Defaults to None.
     
     Returns:
         go.Figure: A heatmap of KNN alignment scores across
     """
-    df = get_knn_alignment_scores(emma, feature, k, metric)
+    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees)
 
     heatmap_data = (
         df.groupby(["Class", "Embedding"])["Fraction"]
@@ -498,6 +516,9 @@ def plot_knn_class_mixing_matrix(
     feature: str,
     k: int = 10,
     metric: str = "euclidean",
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
 ) -> go.Figure:
     """Function to plot a matrix of class mixing in k \
     nearest neighbors for a given feature in an embedding space.
@@ -509,6 +530,12 @@ def plot_knn_class_mixing_matrix(
         k (int, optional): Number of nearest neighbours to consider. \
             Defaults to 10.
         metric (str, optional): Distance metric to use. Defaults to "euclidean".
+        use_annoy (bool, optional): Whether to use Annoy index. \
+            Defaults to False.
+        annoy_metric (str, optional): Annoy distance metric to use. \
+            Defaults to None.
+        n_trees (int, optional): Number of trees used to build the Annoy index. \
+            Defaults to None.
         
     Returns:
         go.Figure: A heatmap of class mixing in k nearest neighbors. \
@@ -517,7 +544,7 @@ def plot_knn_class_mixing_matrix(
                 Values represent the count of neighbors in each class.
     """
     mixing_counts, class_labels = get_class_mixing_in_neighborhood(
-        emma, emb_space, feature, k, metric
+        emma, emb_space, feature, k, metric, use_annoy, annoy_metric, n_trees
     )
 
     mixing_df = pd.DataFrame(
@@ -552,20 +579,18 @@ def plot_low_similarity_distribution(
     metric: str = "euclidean",
     k: int = 10,
     similarity_threshold: float = 0.2,
-):
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
+) -> go.Figure:
 
     for emb_space in [emb_space_1, emb_space_2]:
         emma._check_for_emb_space(emb_space)
-        if metric not in emma.emb[emb_space].get("pairwise_distances", {}):
-            raise ValueError(
-                f"Pairwise distances for metric {metric} not found \
-                    in {emb_space}. Run `calculate_pairwise_distances` first."
-            )
 
     emma._check_column_is_categorical(feature)
 
     similarities = get_neighbourhood_similarity(
-        emma, emb_space_1, emb_space_2, k, metric
+        emma, emb_space_1, emb_space_2, k, metric, use_annoy, annoy_metric, n_trees
     )
 
     low_similarity_indices = np.where(similarities < similarity_threshold)[0]
@@ -634,4 +659,57 @@ def plot_low_similarity_distribution(
         showlegend=True,
     )
 
+    return fig
+
+def plot_within_between_distributions(emma: Emma, emb_space: str, metric: str, 
+                                      feature_category: str, feature_class: str = None
+                                      ) -> go.Figure:
+    """
+    Plot distributions of within-class and between-class distances
+    for a given feature category, optionally for a specific feature class.
+    
+    This function internally uses the compute_within_between_distances method to compute the distances.
+    
+    Args:
+        emma (Emma): An instance of the Emma class.
+        emb_space (str): Name of the embedding space to use.
+        metric (str): The distance metric to use (e.g., "euclidean", "cosine").
+        feature_category (str): The feature category (e.g., "age", "disease_status") for classification.
+        feature_class (str, optional): Specific feature class to visualize. If None, all classes are included.
+        
+    Returns:
+        go.Figure: A Plotly figure object containing the histogram of distances.
+    """
+    # Compute the within and between class distances using the compute_within_between_distances method
+    distances = emma.compute_within_between_distances(
+        emb_space=emb_space,
+        metric=metric,
+        feature_category=feature_category,
+    )
+
+    if feature_class is not None:
+        # Focus on a specific feature class
+        if feature_class not in distances['feature_class'].unique():
+            raise ValueError(f"Feature class '{feature_class}' not found in computed distances.")
+        distances = distances[distances['feature_class'] == feature_class]
+
+    fig = px.histogram(
+        distances,
+        x="distance",
+        color="type",
+        facet_col="feature_class" if feature_class is None else None,
+        marginal="box",
+        nbins=50,
+        title=f"Within vs. Between Class Distances for {feature_category}" + 
+              (f" (Class: {feature_class})" if feature_class else ""),
+        labels={"distance": "Distance", "type": "Type"},
+        barmode="overlay",
+    )
+    
+    fig.update_layout(
+        bargap=0.1,
+        template="simple_white",
+        legend_title_text="Distance Type",
+    )
+    
     return fig
