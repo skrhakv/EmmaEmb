@@ -4,6 +4,7 @@ import numpy as np
 import os
 import torch
 
+from joblib import Parallel, delayed
 from tqdm import tqdm
 from scipy.spatial.distance import pdist, squareform
 from annoy import AnnoyIndex
@@ -456,29 +457,38 @@ class Emma:
             # Validate Annoy-specific inputs
             if annoy_metric is None or n_trees is None:
                 raise ValueError("annoy_metric and n_trees must be provided when use_annoy is True.")
-            if "annoy_index" not in self.emb[emb_space]:
+            if "annoy_ranks" not in self.emb[emb_space]:
                 raise ValueError(f"No Annoy indices found for embedding space '{emb_space}'.")
             if annoy_metric == "cosine":
                 annoy_metric = "angular"  # Annoy uses 'angular' for cosine distance
             elif annoy_metric == "cityblock":
                 annoy_metric = "manhattan"
-            if annoy_metric not in self.emb[emb_space]["annoy_index"]:
-                raise ValueError(f"No Annoy indices found for metric '{annoy_metric}'.")
-            if n_trees not in self.emb[emb_space]["annoy_index"][annoy_metric]:
-                raise ValueError(f"No Annoy index with {n_trees} trees for metric '{annoy_metric}'.")
+            if annoy_metric not in self.emb[emb_space]["annoy_ranks"]:
+                raise ValueError(f"No Annoy ranks found for metric '{annoy_metric}'.")
+            if n_trees not in self.emb[emb_space]["annoy_ranks"][annoy_metric]:
+                raise ValueError(f"No Annoy ranks with {n_trees} trees for metric '{annoy_metric}'.")
 
             # Get Annoy index
-            annoy_index = self.emb[emb_space]["annoy_index"][annoy_metric][n_trees]
-            knn_indices = []
+            ranked_indices = self.emb[emb_space]["annoy_ranks"][annoy_metric][n_trees]
+            
+            # annoy_index = self.emb[emb_space]["annoy_index"][annoy_metric][n_trees]
+            # knn_indices = []
 
-            for i in range(len(self.emb[emb_space]["emb"])):
-                neighbors = annoy_index.get_nns_by_item(i, k + 1)  # fetch k+1 neighbors
-                neighbors = [n for n in neighbors if n != i][:k] 
-                knn_indices.append(neighbors)
-        
+            # for i in range(len(self.emb[emb_space]["emb"])):
+            #     neighbors = annoy_index.get_nns_by_item(i, k + 1)  # fetch k+1 neighbors
+            #     neighbors = [n for n in neighbors if n != i][:k] 
+            #     knn_indices.append(neighbors)
+
+            # def get_neighbors(i):
+            #     neighbors = annoy_index.get_nns_by_item(i, k + 1)
+            #     return [n for n in neighbors if n != i][:k]
+            
+            # knn_indices = Parallel(n_jobs=-1)(delayed(get_neighbors)(i) for i in range(len(self.emb[emb_space]["emb"])))
+
             print(f"Using Annoy index with {n_trees} trees and {annoy_metric} metric.")
 
-            return np.array(knn_indices, dtype=int)
+            #return np.array(knn_indices, dtype=int)
+            return ranked_indices[:, 1 : k + 1]
         
         try:
             ranked_indices = self.emb[emb_space]["ranks"][metric]
@@ -489,13 +499,14 @@ class Emma:
         return ranked_indices[:, 1 : k + 1]
     
     def build_annoy_index(self, emb_space: str, n_trees: int = 50, 
-                          metric: str = 'euclidean', random_seed: int = 42):
+                          metric: str = 'euclidean', random_seed: int = 42, max_k: int = 500):
         """Build the Annoy index for a given embedding space.
         
         Args:
         emb_space (str): Name of the embedding space.
         n_trees (int): Number of trees in the Annoy index. Default is 50.
         metric (str): Distance metric. Default is 'euclidean'.
+        k (int): Number of nearest neighbors to consider. Default is 500.
         """
         # Check if the embedding space exists
         if emb_space not in self.emb:
@@ -526,9 +537,19 @@ class Emma:
         # Store the built index in the emb_space
         if "annoy_index" not in self.emb[emb_space]:
             self.emb[emb_space]["annoy_index"] = {}
+            self.emb[emb_space]["annoy_ranks"] = {}
         if metric not in self.emb[emb_space]["annoy_index"]:
-            self.emb[emb_space]["annoy_index"][metric] = {} 
+            self.emb[emb_space]["annoy_index"][metric] = {}
+            self.emb[emb_space]["annoy_ranks"][metric] = {}
         self.emb[emb_space]["annoy_index"][metric][n_trees] = annoy_index
+        
+        knn_indices = []
+
+        for i in range(len(self.emb[emb_space]["emb"])):
+            neighbors = annoy_index.get_nns_by_item(i, max_k + 1)  # fetch k+1 neighbors
+            neighbors = [n for n in neighbors if n != i][:max_k] 
+            knn_indices.append(neighbors)
+        self.emb[emb_space]["annoy_ranks"][metric][n_trees] = np.array(knn_indices, dtype=int)
         
         print(f"Annoy index for {emb_space} built successfully with {n_trees} trees.")
 
