@@ -57,6 +57,7 @@ def get_knn_alignment_scores(
 
     all_results = []
     feature_classes = emma.metadata[feature]
+    feature_classes_array = feature_classes.values
 
     for emb_space in embedding_spaces:
         nearest_neighbors = emma.get_knn(
@@ -68,25 +69,31 @@ def get_knn_alignment_scores(
             n_trees=n_trees,
         )
 
-        fractions = []
-        for i in range(len(nearest_neighbors)):
-            # Get the indices of the k-nearest neighbors (ranked by distance)
-            neighbor_indices = nearest_neighbors[i]
+        neighbor_classes = feature_classes_array[nearest_neighbors]  # shape: (n_samples, k)
+
+        # Compare each neighbor class to the sample's class
+        same_class_mask = neighbor_classes == feature_classes_array[:, None]  # shape: (n_samples, k)
+        fractions = np.sum(same_class_mask, axis=1) / k
+        
+        # fractions = []
+        # for i in range(len(nearest_neighbors)):
+        #     # Get the indices of the k-nearest neighbors (ranked by distance)
+        #     neighbor_indices = nearest_neighbors[i]
             
-            # Count how many of the k-nearest neighbors belong to
-            # the same class
-            same_class_count = np.sum(
-                feature_classes.iloc[neighbor_indices].values
-                == feature_classes.iloc[i]
-            )
-            fraction = same_class_count / k
-            fractions.append(fraction)
+        #     # Count how many of the k-nearest neighbors belong to
+        #     # the same class
+        #     same_class_count = np.sum(
+        #         feature_classes.iloc[neighbor_indices].values
+        #         == feature_classes.iloc[i]
+        #     )
+        #     fraction = same_class_count / k
+        #     fractions.append(fraction)
 
         # Prepare results in a DataFrame for the current embedding space
         df = pd.DataFrame(
             {
                 # "Sample": emma.sample_names,
-                "Class": feature_classes,
+                "Class": feature_classes_array,
                 "Fraction": fractions,
                 "Embedding": emb_space,
             }
