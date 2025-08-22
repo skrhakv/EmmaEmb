@@ -9,14 +9,11 @@ from esm.utils.constants.models import ESM3_OPEN_SMALL
 from esm.sdk.api import ESMProtein, SamplingConfig, LogitsConfig
 from torch.utils.data import DataLoader, Dataset
 
-from emma.embedding.embedding_handler import EmbeddingHandler
+from plm_embeddings.embedding_handler import EmbeddingHandler
 from huggingface_hub import login
 
 
 HF_AUTH_TOKEN = os.getenv("HF_AUTH_TOKEN")
-if HF_AUTH_TOKEN is None:
-    raise ValueError("Hugging Face token not found. \
-        Please set the HF_AUTH_TOKEN environment variable.")
 
 
 class ProteinDataset(Dataset):
@@ -52,6 +49,7 @@ class Esm3(EmbeddingHandler):
                       batch_size: int=16,
                       model_dir: str=None,
                       layer: int = None,
+                      per_protein: bool = True,
                       ):
         
         if layer:
@@ -88,7 +86,10 @@ class Esm3(EmbeddingHandler):
                     logits_output = client.logits(
                         protein_tensor, LogitsConfig(sequence=True, return_embeddings=True)
                     )
-                    embedding = logits_output.embeddings.mean(dim=1).cpu().numpy()[0]
+                    if per_protein:
+                        embedding = logits_output.embeddings.mean(dim=1).cpu().numpy()[0]
+                    else:
+                        embedding = logits_output.embeddings.cpu().numpy()[0]
                 
                 np.save(
                         output_file,

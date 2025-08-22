@@ -332,19 +332,24 @@ def plot_pairwise_distance_comparison(
     y = emb_pwd_2[np.triu_indices(n_samples, k=1)]
 
     # Create the scatter plot
+    color_discrete_map = (
+        {group: neutral_color for group in set(legend_labels)}
+        if group_by is None else
+        {
+            "Neutral": neutral_color,
+            **{
+                group: emma.color_map[group_by].get(group, neutral_color)
+                for group in set(legend_labels)
+            },
+        }
+    )
     fig = px.scatter(
         x=x,
         y=y,
         title=title,
         opacity=point_opacity,
         color=legend_labels,
-        color_discrete_map={
-            "Neutral": neutral_color,
-            **{
-                group: emma.color_map[group_by].get(group, neutral_color)
-                for group in set(legend_labels)
-            },
-        },
+        color_discrete_map=color_discrete_map,
         hover_data={"Sample pair": hover_samples},
     )
 
@@ -682,28 +687,44 @@ def plot_within_between_distributions(emma: Emma, emb_space: str, metric: str,
     Returns:
         go.Figure: A Plotly figure object containing the histogram of distances.
     """
+    
     # Compute the within and between class distances using the compute_within_between_distances method
     distances = emma.compute_within_between_distances(
         emb_space=emb_space,
         metric=metric,
         feature_category=feature_category,
     )
+    feature_classes = []
+    types = []
+    distances_flat = []
+
+    for cls, dists in distances.items():
+        for dist_type in ("within", "between"):
+            dist_values = dists.get(dist_type, [])
+            feature_classes.extend([cls] * len(dist_values))
+            types.extend([dist_type] * len(dist_values))
+            distances_flat.extend(dist_values)
+
+    distances_df = pd.DataFrame({
+        "feature_class": feature_classes,
+        "type": types,
+        "distance": distances_flat,
+    })
 
     if feature_class is not None:
-        # Focus on a specific feature class
-        if feature_class not in distances['feature_class'].unique():
-            raise ValueError(f"Feature class '{feature_class}' not found in computed distances.")
-        distances = distances[distances['feature_class'] == feature_class]
+        if feature_class not in distances_df["feature_class"].unique():
+            raise ValueError(f"Feature class '{feature_class}' not found.")
+        distances_df = distances_df[distances_df["feature_class"] == feature_class]
 
     fig = px.histogram(
-        distances,
+        distances_df,
         x="distance",
         color="type",
         facet_col="feature_class" if feature_class is None else None,
         marginal="box",
         nbins=50,
         title=f"Within vs. Between Class Distances for {feature_category}" + 
-              (f" (Class: {feature_class})" if feature_class else ""),
+            (f" (Class: {feature_class})" if feature_class else ""),
         labels={"distance": "Distance", "type": "Type"},
         barmode="overlay",
     )
@@ -713,5 +734,6 @@ def plot_within_between_distributions(emma: Emma, emb_space: str, metric: str,
         template="simple_white",
         legend_title_text="Distance Type",
     )
-    
+    fig.update_traces(hoverinfo="skip", selector=dict(type="histogram"))
+    fig.update_layout(dragmode=False)
     return fig

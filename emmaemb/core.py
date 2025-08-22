@@ -555,51 +555,51 @@ class Emma:
         print(f"Annoy index for {emb_space} built successfully with {n_trees} trees.")
 
 
-def compute_within_between_distances(self, emb_space: str, metric: str, feature_category: str):
-    """Compute within-class and between-class distances for a feature category.
+    def compute_within_between_distances(self, emb_space: str, metric: str, feature_category: str):
+        """Compute within-class and between-class distances for a feature category.
 
-    Args:
-        emb_space (str): Name of the embedding space.
-        metric (str): Distance metric to use.
-        feature_category (str): Name of the feature category in metadata.
+        Args:
+            emb_space (str): Name of the embedding space.
+            metric (str): Distance metric to use.
+            feature_category (str): Name of the feature category in metadata.
+            
+        Returns:
+            dict: {class_value: {"within": [...], "between": [...]}}
+        """
         
-    Returns:
-        dict: {class_value: {"within": [...], "between": [...]}}
-    """
-    
-    self._check_for_emb_space(emb_space)
-    self._check_column_in_metadata(feature_category)
-    self._check_column_is_categorical(feature_category)
-    
-    if metric not in DISTANCE_METRIC_ALIASES:
-        raise ValueError(f"Distance metric {metric} not supported.")
-    
-    if metric not in self.emb[emb_space].get("pairwise_distances", {}):
-        raise ValueError(
-            f"Pairwise distances for {metric} not calculated. \
-                Please calculate them first."
-        )
-    
-    emb_pwd = self.emb[emb_space]["pairwise_distances"][metric]
-    labels = self.metadata[feature_category].values  # array of labels, one per sample
-    
-    unique_classes = np.unique(labels)
-    results = {}
+        self._check_for_emb_space(emb_space)
+        self._check_column_in_metadata(feature_category)
+        self._check_column_is_categorical(feature_category)
+        
+        if metric not in DISTANCE_METRIC_ALIASES:
+            raise ValueError(f"Distance metric {metric} not supported.")
+        
+        if metric not in self.emb[emb_space].get("pairwise_distances", {}):
+            raise ValueError(
+                f"Pairwise distances for {metric} not calculated. \
+                    Please calculate them first."
+            )
+        
+        emb_pwd = self.emb[emb_space]["pairwise_distances"][metric]
+        labels = self.metadata[feature_category].values  # array of labels, one per sample
+        
+        unique_classes = np.unique(labels)
+        results = {}
 
-    for cls in unique_classes:
-        mask_cls = labels == cls
-        mask_other = labels != cls
+        for cls in unique_classes:
+            mask_cls = labels == cls
+            mask_other = labels != cls
 
-        # Within-class distances
-        within_distances = emb_pwd[np.ix_(mask_cls, mask_cls)]
-        within_distances = within_distances[np.triu_indices_from(within_distances, k=1)]
+            # Within-class distances
+            within_distances = emb_pwd[np.ix_(mask_cls, mask_cls)]
+            within_distances = within_distances[np.triu_indices_from(within_distances, k=1)]
 
-        # Between-class distances
-        between_distances = emb_pwd[np.ix_(mask_cls, mask_other)].flatten()
+            # Between-class distances
+            between_distances = emb_pwd[np.ix_(mask_cls, mask_other)].flatten()
 
-        results[cls] = {
-            "within": within_distances,
-            "between": between_distances
-        }
+            results[cls] = {
+                "within": within_distances,
+                "between": between_distances
+            }
 
-    return results
+        return results
