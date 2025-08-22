@@ -383,6 +383,7 @@ def plot_knn_alignment_across_embedding_spaces(
     use_annoy: bool = False,
     annoy_metric: str = None,
     n_trees: int = None,
+    adjust_for_imbalance: bool = False,
 ):
     """
     Function to plot KNN alignment scores for a given feature \
@@ -410,7 +411,7 @@ def plot_knn_alignment_across_embedding_spaces(
         go.Figure: A box plot of KNN alignment scores across embedding spaces.
     """
 
-    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees)
+    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees, adjust_for_imbalance)
     fig = px.box(
         df,
         x="Embedding",
@@ -442,6 +443,7 @@ def plot_knn_alignment_across_classes(
     use_annoy: bool = False,
     annoy_metric: str = None,
     n_trees: int = None,
+    adjust_for_imbalance: bool = False,
 ) -> go.Figure:
     """Function to plot KNN alignment scores for a given feature across \
     multiple embedding spaces.
@@ -466,7 +468,7 @@ def plot_knn_alignment_across_classes(
     Returns:
         go.Figure: A heatmap of KNN alignment scores across
     """
-    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees)
+    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees, adjust_for_imbalance)
 
     heatmap_data = (
         df.groupby(["Class", "Embedding"])["Fraction"]

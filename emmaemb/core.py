@@ -506,7 +506,8 @@ class Emma:
         emb_space (str): Name of the embedding space.
         n_trees (int): Number of trees in the Annoy index. Default is 50.
         metric (str): Distance metric. Default is 'euclidean'.
-        k (int): Number of nearest neighbors to consider. Default is 500.
+        random_seed (int): Seed for reproducibility. Default is 42.
+        max_k (int): Number of nearest neighbors to consider. Default is 500.
         """
         # Check if the embedding space exists
         if emb_space not in self.emb:

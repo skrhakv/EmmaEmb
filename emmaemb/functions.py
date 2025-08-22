@@ -16,6 +16,7 @@ def get_knn_alignment_scores(
     use_annoy: bool = False, 
     annoy_metric: str = None, 
     n_trees: int = None,
+    adjust_for_imbalance: bool = False,
 ) -> pd.DataFrame:
     """Function to calculate the alignment scores of k-nearest neighbors \
         across different embedding spaces.
@@ -58,7 +59,8 @@ def get_knn_alignment_scores(
     all_results = []
     feature_classes = emma.metadata[feature]
     feature_classes_array = feature_classes.values
-
+    class_distribution = feature_classes.value_counts(normalize=True).to_dict()
+    
     for emb_space in embedding_spaces:
         nearest_neighbors = emma.get_knn(
             emb_space=emb_space,
@@ -75,6 +77,9 @@ def get_knn_alignment_scores(
         same_class_mask = neighbor_classes == feature_classes_array[:, None]  # shape: (n_samples, k)
         fractions = np.sum(same_class_mask, axis=1) / k
         
+        if adjust_for_imbalance:
+            class_probs = np.vectorize(class_distribution.get)(feature_classes_array)
+            fractions = fractions / class_probs
         # fractions = []
         # for i in range(len(nearest_neighbors)):
         #     # Get the indices of the k-nearest neighbors (ranked by distance)
