@@ -9,5 +9,7 @@ dist/
 .vscode/**
 .slurm/**
 protein_models/** 
-examples/**/embeddings/**
+**/embeddings/**
+**/embeddings_chopped/**
+**/alphafold/**
 mmseqs/*
