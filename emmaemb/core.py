@@ -145,10 +145,6 @@ class Emma:
 
     def _assign_colour_to_embedding_space(self, num_emb_spaces: int) -> str:
         """Assign a colour to the embedding space."""
-        if num_emb_spaces > len(EMB_SPACE_COLORS):
-            return EMB_SPACE_COLORS[num_emb_spaces]
-        # If there are more embedding spaces than predefined colors,
-        # cycle through the list
         return EMB_SPACE_COLORS[
             (num_emb_spaces - len(EMB_SPACE_COLORS)) % len(EMB_SPACE_COLORS)
         ]
