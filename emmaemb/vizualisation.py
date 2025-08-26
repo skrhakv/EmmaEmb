@@ -39,6 +39,7 @@ def plot_emb_space(
     normalise: bool = True,
     color_by: str = None,
     logarithmic_colors: bool = False,
+    verbose_tooltips: bool = False,
     random_state: int = 42,
     perplexity: int = 30,
     shuffle_umap: bool = True,
@@ -56,6 +57,8 @@ def plot_emb_space(
             prior to dimensionality reduction. Defaults to True.
         color_by (str, optional): A column name from the metadata stored in \
             the Emma object, by which the dots are coloured. Defaults to None.
+        verbose_tooltips (bool, optional): Show all metadata on hover tooltips \
+            rather than only the sample ID. Defaults to False.
         logarithmic_colors (bool, optional): Use a logarithmic scale to color by \
             a numerical column. Defaults to False.
         random_state (int, optional): Random state for UMAP or TSNE. Defaults \
@@ -78,20 +81,25 @@ def plot_emb_space(
             shuffle_umap=shuffle_umap
         )
 
+    if verbose_tooltips:
+        hover_data = emma.metadata.to_dict(orient='list')
+    else:
+        hover_data = {"Sample": emma.sample_names}
+
     # args for px.scatter
     scatter_args = {
         "x": embeddings_2d["2d"][:, 0],
         "y": embeddings_2d["2d"][:, 1],
         "title": f"{emb_space} embeddings after {method}",
-        "hover_data": {"Sample": emma.sample_names},
+        "hover_data": hover_data,
         "opacity": 0.5,
     }
 
     # categorical column
     try:
         emma._check_column_is_categorical(color_by)
-         scatter_args["color_discrete_map"] = emma.color_map[color_by]
-         scatter_args["color"] = emma.metadata[color_by]
+        scatter_args["color_discrete_map"] = emma.color_map[color_by]
+        scatter_args["color"] = emma.metadata[color_by]
         scatter_args["labels"] = {"color": color_by}
     except: pass
 
