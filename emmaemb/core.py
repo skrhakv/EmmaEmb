@@ -2,6 +2,7 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import os
+import math
 import torch
 
 from joblib import Parallel, delayed
@@ -84,6 +85,16 @@ class Emma:
             raise ValueError(f"Column {column} is not categorical.")
         else:
             return True
+        
+    def _check_column_is_numeric(self, column: str):
+        """Check if a column is numeric.
+        Args:
+        column (str): Column name.
+        """
+        if column not in self.metadata_numeric_columns:
+            raise ValueError(f"Column {column} is not numeric.")
+        else:
+            return True
 
     def _get_color_map_for_features(self) -> dict:
         """Generate a color map for categorical features
@@ -106,14 +117,23 @@ class Emma:
                         50 unique values."
                 )
                 continue
+            
+            # select smallest color set from list that fits or fall back to 24 colors
+            color_set = next((
+                set for set in [
+                    px.colors.qualitative.Set2, # 8 colors
+                    px.colors.qualitative.Pastel, # 11 colors
+                    px.colors.qualitative.Set3, # 12 colors
+                    px.colors.qualitative.Light24, # 24 colors
+                ]
+                if len(set) >= len(column_values)
+            ), px.colors.qualitative.Alphabet)
 
+            # repeat colors if we don't have enough
+            
             colors = (
-                px.colors.qualitative.Set2
-                + px.colors.qualitative.Set2
-                * (len(column_values) - len(px.colors.qualitative.Set2))
-            )
-
-            colors = colors[: len(column_values)]  # shorten if necessary
+                color_set * math.ceil(len(column_values) / len(color_set))
+            )[:len(column_values)]
             color_map[column] = dict(zip(column_values, colors))
 
             # check for specifial values
