@@ -42,6 +42,7 @@ def plot_emb_space(
     method: str = "PCA",
     normalise: bool = True,
     color_by: str = None,
+    logarithmic_colors: bool = False,
     random_state: int = 42,
     perplexity: int = 30,
 ) -> go.Figure:
@@ -58,6 +59,8 @@ def plot_emb_space(
             prior to dimensionality reduction. Defaults to True.
         color_by (str, optional): A column name from the metadata stored in \
             the Emma object, by which the dots are coloured. Defaults to None.
+        logarithmic_colors (bool, optional): Use a logarithmic scale to color by \
+            a numerical column. Defaults to False.
         random_state (int, optional): Random state for UMAP or TSNE. Defaults \
             to 42.
         perplexity (int, optional): Perplexity, only applied to UMAP.\
@@ -69,10 +72,6 @@ def plot_emb_space(
 
     emma._check_for_emb_space(emb_space)
     embeddings = emma.emb[emb_space]["emb"]
-
-    if color_by:
-        if not emma._check_column_is_categorical(color_by):
-            raise ValueError(f"Column {color_by} is not categorical")
 
     if normalise:
         scaler = StandardScaler()
@@ -94,16 +93,35 @@ def plot_emb_space(
     else:
         raise ValueError(f"Method {method} not implemented")
 
-    fig = px.scatter(
-        x=embeddings_2d[:, 0],
-        y=embeddings_2d[:, 1],
-        color=emma.metadata[color_by] if color_by else None,
-        labels={"color": color_by},
-        title=f"{emb_space} embeddings after {method}",
-        hover_data={"Sample": emma.sample_names},
-        opacity=0.5,
-        color_discrete_map=(emma.color_map[color_by] if color_by else None),
-    )
+    # args for px.scatter
+    scatter_args = {
+        "x": embeddings_2d[:, 0],
+        "y": embeddings_2d[:, 1],
+        "title": f"{emb_space} embeddings after {method}",
+        "hover_data": {"Sample": emma.sample_names},
+        "opacity": 0.5,
+    }
+
+    # categorical column
+    try:
+        emma._check_column_is_categorical(color_by)
+         scatter_args["color_discrete_map"] = emma.color_map[color_by]
+         scatter_args["color"] = emma.metadata[color_by]
+        scatter_args["labels"] = {"color": color_by}
+    except: pass
+
+    # numeric column
+    try:
+        emma._check_column_is_numeric(color_by)
+        if logarithmic_colors:
+            scatter_args["color"] = np.log10(emma.metadata[color_by])
+            scatter_args["labels"] = {"color": f"log({color_by})"}
+        else:
+            scatter_args["color"] = emma.metadata[color_by]
+            scatter_args["labels"] = {"color": color_by}
+     except: pass
+
+    fig = px.scatter(**scatter_args)
 
     fig.update_layout(
         width=800,
