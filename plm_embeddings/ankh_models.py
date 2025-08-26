@@ -4,9 +4,6 @@ import os
 
 import numpy as np
 
-PATH = "/scratch/protein_models/"
-os.environ['HF_HOME'] = PATH
-
 
 import torch
 from torch.utils.data import DataLoader, Dataset

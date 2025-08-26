@@ -29,20 +29,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Path to a FASTA file containing protein sequences or \
             a list of protein names",
-        default="examples/ian/sequences-func.fasta",
     )
     parser.add_argument(
         "-m",
         "--model",
         type=str,
         help="Name of the embedding model to be used",
-        default="Rostlab/prot_t5_xl_uniref50",
+        default="esm3-sm-open-v1",
     )
     parser.add_argument(
         "-o",
         "--output_dir",
         type=str,
-        default="examples/ian/embeddings",
         help="Output directory for storing embeddings",
     )
     parser.add_argument(
@@ -104,12 +102,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model_dir",
         type=str,
-        default="/Users/pia/Developer/ema/protein_models",
         help="Directory for model output. Should be a non-empty string or \
             missing.",
     )
     return parser.parse_args()
-
 
 def setup_logging(model: str, run_id: str) -> logging.Logger:
     """Set up the logger with a unique run ID."""
