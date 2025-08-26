@@ -4,10 +4,6 @@ import numpy as np
 import pandas as pd
 
 from scipy import stats
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from umap import UMAP
 
 from emmaemb.core import Emma
 from emmaemb.functions import *
@@ -42,8 +38,11 @@ def plot_emb_space(
     method: str = "PCA",
     normalise: bool = True,
     color_by: str = None,
+    logarithmic_colors: bool = False,
+    verbose_tooltips: bool = False,
     random_state: int = 42,
     perplexity: int = 30,
+    shuffle_umap: bool = True,
 ) -> go.Figure:
     """Function to plot the embeddings of a given embedding space in 2D. \
     Dimensionality reduction is performed using PCA, TSNE, or UMAP.\
@@ -58,52 +57,64 @@ def plot_emb_space(
             prior to dimensionality reduction. Defaults to True.
         color_by (str, optional): A column name from the metadata stored in \
             the Emma object, by which the dots are coloured. Defaults to None.
+        verbose_tooltips (bool, optional): Show all metadata on hover tooltips \
+            rather than only the sample ID. Defaults to False.
+        logarithmic_colors (bool, optional): Use a logarithmic scale to color by \
+            a numerical column. Defaults to False.
         random_state (int, optional): Random state for UMAP or TSNE. Defaults \
             to 42.
         perplexity (int, optional): Perplexity, only applied to UMAP.\
             Defaults to 30.
+        shuffle_umap (bool, optional): Shuffle order of embeddings before \
+            running UMAP. Defaults to True
 
     Returns:
         go.Figure: A scatter plot of the embeddings in 2D.
     """
 
-    emma._check_for_emb_space(emb_space)
-    embeddings = emma.emb[emb_space]["emb"]
-
-    if color_by:
-        if not emma._check_column_is_categorical(color_by):
-            raise ValueError(f"Column {color_by} is not categorical")
-
-    if normalise:
-        scaler = StandardScaler()
-        embeddings = scaler.fit_transform(embeddings)
-
-    if method == "PCA":
-        pca = PCA(n_components=2)
-        embeddings_2d = pca.fit_transform(embeddings)
-        variance_explained = pca.explained_variance_ratio_
-    elif method == "TSNE":
-        tsne = TSNE(
-            n_components=2, random_state=random_state, perplexity=perplexity
+    embeddings_2d = emma.get_2d(
+            emb_space=emb_space,
+            method=method,
+            normalise=normalise,
+            random_state=random_state,
+            perplexity=perplexity,
+            shuffle_umap=shuffle_umap
         )
-        embeddings_2d = tsne.fit_transform(embeddings)
-    elif method == "UMAP":
-        umap = UMAP(n_components=2, random_state=random_state)
-        embeddings_2d = umap.fit_transform(embeddings)
 
+    if verbose_tooltips:
+        hover_data = emma.metadata.to_dict(orient='list')
     else:
-        raise ValueError(f"Method {method} not implemented")
+        hover_data = {"Sample": emma.sample_names}
 
-    fig = px.scatter(
-        x=embeddings_2d[:, 0],
-        y=embeddings_2d[:, 1],
-        color=emma.metadata[color_by] if color_by else None,
-        labels={"color": color_by},
-        title=f"{emb_space} embeddings after {method}",
-        hover_data={"Sample": emma.sample_names},
-        opacity=0.5,
-        color_discrete_map=(emma.color_map[color_by] if color_by else None),
-    )
+    # args for px.scatter
+    scatter_args = {
+        "x": embeddings_2d["2d"][:, 0],
+        "y": embeddings_2d["2d"][:, 1],
+        "title": f"{emb_space} embeddings after {method}",
+        "hover_data": hover_data,
+        "opacity": 0.5,
+    }
+
+    # categorical column
+    try:
+        emma._check_column_is_categorical(color_by)
+        scatter_args["color_discrete_map"] = emma.color_map[color_by]
+        scatter_args["color"] = emma.metadata[color_by]
+        scatter_args["labels"] = {"color": color_by}
+    except: pass
+
+    # numeric column
+    try:
+        emma._check_column_is_numeric(color_by)
+        if logarithmic_colors:
+            scatter_args["color"] = np.log10(emma.metadata[color_by])
+            scatter_args["labels"] = {"color": f"log({color_by})"}
+        else:
+            scatter_args["color"] = emma.metadata[color_by]
+            scatter_args["labels"] = {"color": color_by}
+    except: pass
+
+    fig = px.scatter(**scatter_args)
 
     fig.update_layout(
         width=800,
@@ -118,7 +129,8 @@ def plot_emb_space(
         marker=dict(size=max(10, (1 / len(emma.sample_names)) * 400))
     )
 
-    if method == "PCA":
+    if method == "PCA" and "variance_explained" in embeddings_2d:
+        variance_explained = embeddings_2d["variance_explained"]
         fig.update_layout(
             xaxis_title="PC1 ({}%)".format(
                 round(variance_explained[0] * 100, 2)
@@ -332,19 +344,24 @@ def plot_pairwise_distance_comparison(
     y = emb_pwd_2[np.triu_indices(n_samples, k=1)]
 
     # Create the scatter plot
+    color_discrete_map = (
+        {group: neutral_color for group in set(legend_labels)}
+        if group_by is None else
+        {
+            "Neutral": neutral_color,
+            **{
+                group: emma.color_map[group_by].get(group, neutral_color)
+                for group in set(legend_labels)
+            },
+        }
+    )
     fig = px.scatter(
         x=x,
         y=y,
         title=title,
         opacity=point_opacity,
         color=legend_labels,
-        color_discrete_map={
-            "Neutral": neutral_color,
-            **{
-                group: emma.color_map[group_by].get(group, neutral_color)
-                for group in set(legend_labels)
-            },
-        },
+        color_discrete_map=color_discrete_map,
         hover_data={"Sample pair": hover_samples},
     )
 
@@ -380,6 +397,10 @@ def plot_knn_alignment_across_embedding_spaces(
     metric: str = "euclidean",
     emb_space_order: list = None,
     color: str = "#303496",
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
+    adjust_for_imbalance: bool = False,
 ):
     """
     Function to plot KNN alignment scores for a given feature \
@@ -396,12 +417,18 @@ def plot_knn_alignment_across_embedding_spaces(
             embedding spaces. Defaults to None.
         color (str, optional): Colour of the plot elements. \
             Defaults to "#303496".
+        use_annoy (bool, optional): Whether to use Annoy index. \
+            Defaults to False.
+        annoy_metric (str, optional): Annoy distance metric to use. \
+            Defaults to None.
+        n_trees (int, optional): Number of trees used to build the Annoy index. \
+            Defaults to None.
         
     Returns:
         go.Figure: A box plot of KNN alignment scores across embedding spaces.
     """
 
-    df = get_knn_alignment_scores(emma, feature, k, metric)
+    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees, adjust_for_imbalance)
     fig = px.box(
         df,
         x="Embedding",
@@ -430,6 +457,10 @@ def plot_knn_alignment_across_classes(
     metric: str = "euclidean",
     emb_space_order: list = None,
     color: str = "#303496",
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
+    adjust_for_imbalance: bool = False,
 ) -> go.Figure:
     """Function to plot KNN alignment scores for a given feature across \
     multiple embedding spaces.
@@ -444,11 +475,17 @@ def plot_knn_alignment_across_classes(
             embedding spaces. Defaults to None.
         color (str, optional): Colour of the plot elements. \
             Defaults to "#303496".
+        use_annoy (bool, optional): Whether to use Annoy index. \
+            Defaults to False.
+        annoy_metric (str, optional): Annoy distance metric to use. \
+            Defaults to None.
+        n_trees (int, optional): Number of trees used to build the Annoy index. \
+            Defaults to None.
     
     Returns:
         go.Figure: A heatmap of KNN alignment scores across
     """
-    df = get_knn_alignment_scores(emma, feature, k, metric)
+    df = get_knn_alignment_scores(emma, feature, k, metric, use_annoy, annoy_metric, n_trees, adjust_for_imbalance)
 
     heatmap_data = (
         df.groupby(["Class", "Embedding"])["Fraction"]
@@ -498,6 +535,9 @@ def plot_knn_class_mixing_matrix(
     feature: str,
     k: int = 10,
     metric: str = "euclidean",
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
 ) -> go.Figure:
     """Function to plot a matrix of class mixing in k \
     nearest neighbors for a given feature in an embedding space.
@@ -509,6 +549,12 @@ def plot_knn_class_mixing_matrix(
         k (int, optional): Number of nearest neighbours to consider. \
             Defaults to 10.
         metric (str, optional): Distance metric to use. Defaults to "euclidean".
+        use_annoy (bool, optional): Whether to use Annoy index. \
+            Defaults to False.
+        annoy_metric (str, optional): Annoy distance metric to use. \
+            Defaults to None.
+        n_trees (int, optional): Number of trees used to build the Annoy index. \
+            Defaults to None.
         
     Returns:
         go.Figure: A heatmap of class mixing in k nearest neighbors. \
@@ -517,7 +563,7 @@ def plot_knn_class_mixing_matrix(
                 Values represent the count of neighbors in each class.
     """
     mixing_counts, class_labels = get_class_mixing_in_neighborhood(
-        emma, emb_space, feature, k, metric
+        emma, emb_space, feature, k, metric, use_annoy, annoy_metric, n_trees
     )
 
     mixing_df = pd.DataFrame(
@@ -552,20 +598,18 @@ def plot_low_similarity_distribution(
     metric: str = "euclidean",
     k: int = 10,
     similarity_threshold: float = 0.2,
-):
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
+) -> go.Figure:
 
     for emb_space in [emb_space_1, emb_space_2]:
         emma._check_for_emb_space(emb_space)
-        if metric not in emma.emb[emb_space].get("pairwise_distances", {}):
-            raise ValueError(
-                f"Pairwise distances for metric {metric} not found \
-                    in {emb_space}. Run `calculate_pairwise_distances` first."
-            )
 
     emma._check_column_is_categorical(feature)
 
     similarities = get_neighbourhood_similarity(
-        emma, emb_space_1, emb_space_2, k, metric
+        emma, emb_space_1, emb_space_2, k, metric, use_annoy, annoy_metric, n_trees
     )
 
     low_similarity_indices = np.where(similarities < similarity_threshold)[0]
@@ -634,4 +678,74 @@ def plot_low_similarity_distribution(
         showlegend=True,
     )
 
+    return fig
+
+def plot_within_between_distributions(emma: Emma, emb_space: str, metric: str, 
+                                      feature_category: str, feature_class: str = None
+                                      ) -> go.Figure:
+    """
+    Plot distributions of within-class and between-class distances
+    for a given feature category, optionally for a specific feature class.
+    
+    This function internally uses the compute_within_between_distances method to compute the distances.
+    
+    Args:
+        emma (Emma): An instance of the Emma class.
+        emb_space (str): Name of the embedding space to use.
+        metric (str): The distance metric to use (e.g., "euclidean", "cosine").
+        feature_category (str): The feature category (e.g., "age", "disease_status") for classification.
+        feature_class (str, optional): Specific feature class to visualize. If None, all classes are included.
+        
+    Returns:
+        go.Figure: A Plotly figure object containing the histogram of distances.
+    """
+    
+    # Compute the within and between class distances using the compute_within_between_distances method
+    distances = emma.compute_within_between_distances(
+        emb_space=emb_space,
+        metric=metric,
+        feature_category=feature_category,
+    )
+    feature_classes = []
+    types = []
+    distances_flat = []
+
+    for cls, dists in distances.items():
+        for dist_type in ("within", "between"):
+            dist_values = dists.get(dist_type, [])
+            feature_classes.extend([cls] * len(dist_values))
+            types.extend([dist_type] * len(dist_values))
+            distances_flat.extend(dist_values)
+
+    distances_df = pd.DataFrame({
+        "feature_class": feature_classes,
+        "type": types,
+        "distance": distances_flat,
+    })
+
+    if feature_class is not None:
+        if feature_class not in distances_df["feature_class"].unique():
+            raise ValueError(f"Feature class '{feature_class}' not found.")
+        distances_df = distances_df[distances_df["feature_class"] == feature_class]
+
+    fig = px.histogram(
+        distances_df,
+        x="distance",
+        color="type",
+        facet_col="feature_class" if feature_class is None else None,
+        marginal="box",
+        nbins=50,
+        title=f"Within vs. Between Class Distances for {feature_category}" + 
+            (f" (Class: {feature_class})" if feature_class else ""),
+        labels={"distance": "Distance", "type": "Type"},
+        barmode="overlay",
+    )
+    
+    fig.update_layout(
+        bargap=0.1,
+        template="simple_white",
+        legend_title_text="Distance Type",
+    )
+    fig.update_traces(hoverinfo="skip", selector=dict(type="histogram"))
+    fig.update_layout(dragmode=False)
     return fig

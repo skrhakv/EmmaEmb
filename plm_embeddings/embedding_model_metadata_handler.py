@@ -2,7 +2,7 @@ import json
 
 from typing import List
 
-path_model_parameters = "emma/embedding/embedding_model_metadata.json"
+path_model_parameters = "plm_embeddings/embedding_model_metadata.json"
 
 
 class EmbeddingModelMetadataHandler:

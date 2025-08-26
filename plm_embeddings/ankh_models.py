@@ -4,16 +4,13 @@ import os
 
 import numpy as np
 
-PATH = "/scratch/protein_models/"
-os.environ['HF_HOME'] = PATH
-
 
 import torch
 from torch.utils.data import DataLoader, Dataset
 import ankh
 
-from emma.embedding.embedding_handler import EmbeddingHandler
-from emma.embedding.embedding_model_metadata_handler import (
+from plm_embeddings.embedding_handler import EmbeddingHandler
+from plm_embeddings.embedding_model_metadata_handler import (
     EmbeddingModelMetadataHandler,
 )
 
@@ -48,6 +45,7 @@ class Ankh(EmbeddingHandler):
         truncation_seq_length: int = 1022,
         layer: int = None,
         model_dir: str = "",
+        per_protein: bool = True,
     ):
         """
         Extract representations from the Ankh model.
@@ -88,6 +86,10 @@ class Ankh(EmbeddingHandler):
             # Unpack the batch into protein_ids and sequences
             batch_protein_ids, batch_sequences = batch
             
+            # Convert batch_protein_ids and batch_sequences to dict
+            # with protein_id as key and sequence as value
+            batch_sequences_dict = {pid: seq for pid, seq in zip(batch_protein_ids, batch_sequences)}
+            
             outputs = tokenizer.batch_encode_plus(
                 batch_sequences,  
                 add_special_tokens=True,
@@ -107,5 +109,18 @@ class Ankh(EmbeddingHandler):
             # Save embeddings
             for pid, embedding in zip(batch_protein_ids, embeddings.last_hidden_state):
                 output_file = os.path.join(output_dir, f"{pid}.npy")
-                embedding_mean = embedding.mean(dim=0).cpu().numpy() 
-                np.save(output_file, embedding_mean)
+                
+                s_len = len(batch_sequences_dict[pid])
+                
+                # slice off padding and special token
+                embedding = embedding[:s_len]
+                
+                if per_protein:
+                    embedding_mean = embedding.mean(dim=0).cpu().numpy()  
+                    np.save(output_file, embedding_mean)
+                else:
+                    # Save the entire embedding for each protein
+                    embedding = embedding.cpu().numpy()
+                    np.save(output_file, embedding)
+                
+                

@@ -5,11 +5,11 @@ from typing import List
 import numpy as np
 import torch
 
-from emma.embedding.embedding_handler import EmbeddingHandler
-from emma.embedding.embedding_model_metadata_handler import (
+from plm_embeddings.embedding_handler import EmbeddingHandler
+from plm_embeddings.embedding_model_metadata_handler import (
     EmbeddingModelMetadataHandler,
 )
-from emma.utils import write_fasta
+from plm_embeddings.utils import write_fasta
 
 from esm import (
     Alphabet,
@@ -42,6 +42,7 @@ class EsmFair(EmbeddingHandler):
         include: List[str] = ["mean"],
         truncation_seq_length: int = 1022,
         model_dir: str=None,
+        per_protein: bool = True
     ):
         """script to extract representations from an ESM model
 
@@ -148,19 +149,14 @@ class EsmFair(EmbeddingHandler):
                     # Call clone on tensors to ensure tensors are not views
                     # into a larger representation
                     # See https://github.com/pytorch/pytorch/issues/1995
-                    if "per_tok" in include:
+                    if per_protein:
                         result["representations"] = {
-                            layer: t[i, 1 : truncate_len + 1].clone()
-                            for layer, t in representations.items()
-                        }
-                    if "mean" in include:
-                        result["mean_representations"] = {
                             layer: t[i, 1 : truncate_len + 1].mean(0).clone()
                             for layer, t in representations.items()
                         }
-                    if "bos" in include:
-                        result["bos_representations"] = {
-                            layer: t[i, 0].clone()
+                    else:
+                        result["representations"] = {
+                            layer: t[i, 1 : truncate_len + 1].clone()
                             for layer, t in representations.items()
                         }
                     if return_contacts:
@@ -170,7 +166,7 @@ class EsmFair(EmbeddingHandler):
 
                     # save result['mean_representations'] to output_file as a np array
                     embedding = (
-                        result["mean_representations"][layer].cpu().numpy()
+                        result["representations"][layer].cpu().numpy()
                     )
                     np.save(
                         output_file,

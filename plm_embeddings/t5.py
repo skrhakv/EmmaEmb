@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from transformers import T5EncoderModel, T5Tokenizer
 from tqdm import tqdm
 
-from emma.embedding.embedding_handler import EmbeddingHandler
+from plm_embeddings.embedding_handler import EmbeddingHandler
 
 
 class ProteinDataset(Dataset):
@@ -100,10 +100,10 @@ class T5(EmbeddingHandler):
         batch_size: int = 8,
         extension: str = "npy",
         layer: int = -1,
+        per_protein: bool = True
     ):
         max_batch = batch_size  # max number of sequences per single batch
         max_residues = 4000  # number of cummulative residues per batch
-        per_protein = True  # if True, embeddings are averaged per protein
         max_seq_len = truncation_seq_length
 
         emb_dict = dict()
@@ -170,7 +170,7 @@ class T5(EmbeddingHandler):
                     emb = embedding_repr.last_hidden_state[batch_idx, :s_len]
 
                     if per_protein:
-                        emb = emb.mean(dim=0)
+                        emb = emb.mean(dim=0)                   
                     if len(emb_dict) == 0:
                         logging.info(
                             "Embedded prrotein {} with length {} to emb. \
@@ -178,6 +178,7 @@ class T5(EmbeddingHandler):
                                 identifier, s_len, emb.shape
                             )
                         )
+                        
                     emb_dict[identifier] = emb.detach().cpu().numpy().squeeze()
 
                     write_embedding_to_file(

@@ -1,20 +1,20 @@
 import pandas as pd
-import numpy as np
 
-from emma.ema import EmbeddingHandler
-from emma.knn_analysis import (
-    analyze_low_similarity_distribution,
+from emmaemb.core import Emma
+from emmaemb.vizualization import (
+    plot_emb_dis_scatter, 
+    plot_knn_alignment_across_embedding_spaces,
 )
 
 
 # parameter for this script
 figures_to_be_plotted = [
-    # 'Fig_A1',
-    # 'Fig_A2',
-    #'Fig_A3',
+    #'Fig_A1',
+    'Fig_A2',
+    'Fig_A3',
     #'Fig_B1',
-    "Fig_B2",
-    "Fig_B3",
+    #"Fig_B2",
+    #"Fig_B3",
 ]
 
 output_dir = "figures/"
@@ -29,7 +29,7 @@ models = {
 }
 
 metadata = pd.read_csv(fp_metadata)
-ema = EmbeddingHandler(sample_meta_data=metadata)
+ema = Emma(feature_data=metadata)
 
 for model_alias, model_name in models.items():
     ema.add_emb_space(
