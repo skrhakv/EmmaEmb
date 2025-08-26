@@ -45,6 +45,7 @@ def plot_emb_space(
     logarithmic_colors: bool = False,
     random_state: int = 42,
     perplexity: int = 30,
+    shuffle_umap: bool = True,
 ) -> go.Figure:
     """Function to plot the embeddings of a given embedding space in 2D. \
     Dimensionality reduction is performed using PCA, TSNE, or UMAP.\
@@ -65,6 +66,8 @@ def plot_emb_space(
             to 42.
         perplexity (int, optional): Perplexity, only applied to UMAP.\
             Defaults to 30.
+        shuffle_umap (bool, optional): Shuffle order of embeddings before \
+            running UMAP. Defaults to True
 
     Returns:
         go.Figure: A scatter plot of the embeddings in 2D.
@@ -88,7 +91,13 @@ def plot_emb_space(
         embeddings_2d = tsne.fit_transform(embeddings)
     elif method == "UMAP":
         umap = UMAP(n_components=2, random_state=random_state)
-        embeddings_2d = umap.fit_transform(embeddings)
+        if shuffle_umap:
+            shuffled_i = np.random.permutation(len(embeddings))
+            embeddings_2d = umap.fit_transform(embeddings[shuffled_i])
+            unshuffled_i = np.argsort(shuffled_i)
+            embeddings_2d = embeddings_2d[unshuffled_i]
+        else:
+            embeddings_2d = umap.fit_transform(embeddings)
 
     else:
         raise ValueError(f"Method {method} not implemented")
