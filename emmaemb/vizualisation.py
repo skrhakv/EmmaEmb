@@ -112,7 +112,7 @@ def plot_emb_space(
         else:
             scatter_args["color"] = emma.metadata[color_by]
             scatter_args["labels"] = {"color": color_by}
-     except: pass
+    except: pass
 
     fig = px.scatter(**scatter_args)
 

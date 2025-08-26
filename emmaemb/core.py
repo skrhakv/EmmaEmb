@@ -492,20 +492,6 @@ class Emma:
 
             # Get Annoy index
             ranked_indices = self.emb[emb_space]["annoy_ranks"][annoy_metric][n_trees]
-            
-            # annoy_index = self.emb[emb_space]["annoy_index"][annoy_metric][n_trees]
-            # knn_indices = []
-
-            # for i in range(len(self.emb[emb_space]["emb"])):
-            #     neighbors = annoy_index.get_nns_by_item(i, k + 1)  # fetch k+1 neighbors
-            #     neighbors = [n for n in neighbors if n != i][:k] 
-            #     knn_indices.append(neighbors)
-
-            # def get_neighbors(i):
-            #     neighbors = annoy_index.get_nns_by_item(i, k + 1)
-            #     return [n for n in neighbors if n != i][:k]
-            
-            # knn_indices = Parallel(n_jobs=-1)(delayed(get_neighbors)(i) for i in range(len(self.emb[emb_space]["emb"])))
 
             print(f"Using Annoy index with {n_trees} trees and {annoy_metric} metric.")
 

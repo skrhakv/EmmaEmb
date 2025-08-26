@@ -32,7 +32,7 @@ or, if you prefer the `BibTeX` format:
     - **[Computation of pairwise distances](#computation-of-pairwise-distances)**
     - **[Feature distribution across spaces](#feature-distribution-across-spaces)**
     - **[Pairwise space comparison](#pairwise-space-comparison)**
-- **[Installation](#installation)**
+- **[Installation and first steps](#installation)**
 - **[Scripts for protein language model embeddings](#scripts-for-protein-language-model-embeddings)**
 - **[License](#license)**
 
@@ -81,8 +81,7 @@ To make embedding spaces comparable, EmmaEmb analyses rely on comparing not indi
 - Manhattan
 
 For parts of the analysis only the k-nearest neighbors are considered, which will be based on the pairwise distances. The pairwise distances are only calculated once and can be reused for multiple analyses.
-
-The distances can be visually inspected in a heatmap.
+For large dataset sizes, EmmaEmb supports the option to approximate nearest neighbors.
 
 
 ### Feature distribution across spaces
@@ -154,6 +153,15 @@ fig_3 = plot_knn_alignment_across_embedding_spaces(
 ```
 
 A more detailed example can be found in the [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/broadinstitute/EmmaEmb/blob/main/examples/Pla2g2/emmaemb_pla2g2.ipynb) notebook.
+
+
+### Approximate nearest neighbors with Annoy
+
+For very large embedding spaces, calculating exact k-nearest neighbors can be computationally expensive. EmmaEmb supports the option to use [Annoy](https://github.com/spotify/annoy) to approximate nearest neighbors efficiently:
+
+- Set `use_annoy=True` when calling `get_knn` or related functions.
+- You can specify the `annoy_metric` (`"euclidean"`, `"manhattan"`, `"cosine"`) and the number of trees (`n_trees`) to balance accuracy and performance.
+
 
 ## Scripts for protein language model embeddings
 

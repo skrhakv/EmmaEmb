@@ -22,6 +22,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "annoy>=1.17.3",
     "importlib-metadata>=8.5.0",
     "joblib>=1.4.2",
     "llvmlite>=0.41.1",
@@ -42,6 +43,7 @@ dependencies = [
     "statsmodels>=0.14.1",
     "threadpoolctl>=3.5.0",
     "tqdm>=4.67.1",
+    "torch>=2.0",
     "tzdata>=2025.1",
     "umap-learn>=0.5.7",
     "zipp>=3.20.2",
