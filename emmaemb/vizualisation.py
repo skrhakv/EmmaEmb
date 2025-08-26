@@ -4,10 +4,6 @@ import numpy as np
 import pandas as pd
 
 from scipy import stats
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from umap import UMAP
 
 from emmaemb.core import Emma
 from emmaemb.functions import *
@@ -73,39 +69,19 @@ def plot_emb_space(
         go.Figure: A scatter plot of the embeddings in 2D.
     """
 
-    emma._check_for_emb_space(emb_space)
-    embeddings = emma.emb[emb_space]["emb"]
-
-    if normalise:
-        scaler = StandardScaler()
-        embeddings = scaler.fit_transform(embeddings)
-
-    if method == "PCA":
-        pca = PCA(n_components=2)
-        embeddings_2d = pca.fit_transform(embeddings)
-        variance_explained = pca.explained_variance_ratio_
-    elif method == "TSNE":
-        tsne = TSNE(
-            n_components=2, random_state=random_state, perplexity=perplexity
+    embeddings_2d = emma.get_2d(
+            emb_space=emb_space,
+            method=method,
+            normalise=normalise,
+            random_state=random_state,
+            perplexity=perplexity,
+            shuffle_umap=shuffle_umap
         )
-        embeddings_2d = tsne.fit_transform(embeddings)
-    elif method == "UMAP":
-        umap = UMAP(n_components=2, random_state=random_state)
-        if shuffle_umap:
-            shuffled_i = np.random.permutation(len(embeddings))
-            embeddings_2d = umap.fit_transform(embeddings[shuffled_i])
-            unshuffled_i = np.argsort(shuffled_i)
-            embeddings_2d = embeddings_2d[unshuffled_i]
-        else:
-            embeddings_2d = umap.fit_transform(embeddings)
-
-    else:
-        raise ValueError(f"Method {method} not implemented")
 
     # args for px.scatter
     scatter_args = {
-        "x": embeddings_2d[:, 0],
-        "y": embeddings_2d[:, 1],
+        "x": embeddings_2d["2d"][:, 0],
+        "y": embeddings_2d["2d"][:, 1],
         "title": f"{emb_space} embeddings after {method}",
         "hover_data": {"Sample": emma.sample_names},
         "opacity": 0.5,
@@ -145,7 +121,8 @@ def plot_emb_space(
         marker=dict(size=max(10, (1 / len(emma.sample_names)) * 400))
     )
 
-    if method == "PCA":
+    if method == "PCA" and "variance_explained" in embeddings_2d:
+        variance_explained = embeddings_2d["variance_explained"]
         fig.update_layout(
             xaxis_title="PC1 ({}%)".format(
                 round(variance_explained[0] * 100, 2)

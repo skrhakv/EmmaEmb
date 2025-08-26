@@ -1,14 +1,20 @@
+import os
+
+import math
+import numpy as np
 import pandas as pd
 import plotly.express as px
-import numpy as np
-import os
-import math
+
 import torch
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from scipy.spatial.distance import pdist, squareform
 from annoy import AnnoyIndex
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from umap import UMAP
 
 from emmaemb.config import EMB_SPACE_COLORS, DISTANCE_METRIC_ALIASES
 
@@ -570,6 +576,76 @@ class Emma:
         
         print(f"Annoy index for {emb_space} built successfully with {n_trees} trees.")
 
+    # Dimensionality reduction
+    def get_2d(
+        self,
+        emb_space: str,
+        method: str = "PCA",
+        normalise: bool = True,
+        random_state: int = 42,
+        perplexity: int = 30,
+        shuffle_umap: bool = True,
+    ) -> dict:
+        """Function to get the 2D reduction of a given embedding space. \
+        Dimensionality reduction is performed using PCA, TSNE, or UMAP. \
+        Uses cached values for recurring arguments.
+        Args:
+            emb_space (str): Name of an embedding space in the Emma instance.
+            method (str, optional): Method for dimensionality reduction. \
+                Either "PCA", "TSNE", or "UMAP". Defaults to "PCA".
+            normalise (bool, optional): Whether to perform z-score normalisation \
+                prior to dimensionality reduction. Defaults to True.
+            random_state (int, optional): Random state for UMAP or TSNE. Defaults \
+                to 42.
+            perplexity (int, optional): Perplexity, only applied to UMAP.\
+                Defaults to 30.
+            shuffle_umap (bool, optional): Shuffle order of embeddings before \
+                running UMAP. Defaults to True
+        Returns:
+            dict: A dictionary with key `"2d"` for the reduced embeddings and \
+                optionally additional information.
+        """
+        self._check_for_emb_space(emb_space)
+
+        self.emb[emb_space]["2d"] = self.emb[emb_space].get("2d", dict())
+        key = "__".join(
+            (str(arg) for arg in [method, normalise, random_state, perplexity, shuffle_umap])
+        )
+        # cache
+        if key in self.emb[emb_space]["2d"]:
+            return self.emb[emb_space]["2d"][key]
+
+        embeddings = self.emb[emb_space]["emb"]
+        result = {}
+
+        if normalise:
+            scaler = StandardScaler()
+            embeddings = scaler.fit_transform(embeddings)
+
+        if method == "PCA":
+            pca = PCA(n_components=2)
+            embeddings_2d = pca.fit_transform(embeddings)
+            result["variance_explained"] = pca.explained_variance_ratio_
+        elif method == "TSNE":
+            tsne = TSNE(
+                n_components=2, random_state=random_state, perplexity=perplexity
+            )
+            embeddings_2d = tsne.fit_transform(embeddings)
+        elif method == "UMAP":
+            umap = UMAP(n_components=2, random_state=random_state)
+            if shuffle_umap:
+                shuffled_i = np.random.permutation(len(embeddings))
+                embeddings_2d = umap.fit_transform(embeddings[shuffled_i])
+                unshuffled_i = np.argsort(shuffled_i)
+                embeddings_2d = embeddings_2d[unshuffled_i]
+            else:
+                embeddings_2d = umap.fit_transform(embeddings)
+        else:
+            raise ValueError(f"Method {method} not implemented")
+
+        result["2d"] = embeddings_2d
+        self.emb[emb_space]["2d"][key] = result
+        return result
 
     def compute_within_between_distances(self, emb_space: str, metric: str, feature_category: str):
         """Compute within-class and between-class distances for a feature category.
