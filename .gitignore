@@ -9,4 +9,5 @@ dist/
 .vscode/**
 .slurm/**
 protein_models/** 
-examples/ian/embeddings
+examples/**/embeddings/**
+mmseqs/*
