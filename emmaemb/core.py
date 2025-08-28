@@ -239,7 +239,7 @@ class Emma:
         # Add the embedding space
         self.emb[emb_space_name] = {
             "emb": embeddings,
-            "colour": self._assign_colour_to_embedding_space(len(self.emb)),
+            "colour": self._assign_colour_to_embedding_space(len(self.emb))
         }
 
         print(f"Embedding space '{emb_space_name}' added successfully.")

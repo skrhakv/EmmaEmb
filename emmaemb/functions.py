@@ -80,19 +80,6 @@ def get_knn_alignment_scores(
         if adjust_for_imbalance:
             class_probs = np.vectorize(class_distribution.get)(feature_classes_array)
             fractions = fractions / class_probs
-        # fractions = []
-        # for i in range(len(nearest_neighbors)):
-        #     # Get the indices of the k-nearest neighbors (ranked by distance)
-        #     neighbor_indices = nearest_neighbors[i]
-            
-        #     # Count how many of the k-nearest neighbors belong to
-        #     # the same class
-        #     same_class_count = np.sum(
-        #         feature_classes.iloc[neighbor_indices].values
-        #         == feature_classes.iloc[i]
-        #     )
-        #     fraction = same_class_count / k
-        #     fractions.append(fraction)
 
         # Prepare results in a DataFrame for the current embedding space
         df = pd.DataFrame(

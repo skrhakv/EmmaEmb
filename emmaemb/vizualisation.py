@@ -1,5 +1,8 @@
 import plotly.express as px
 import plotly.graph_objects as go
+
+from typing import List
+
 import numpy as np
 import pandas as pd
 
@@ -528,6 +531,115 @@ def plot_knn_alignment_across_classes(
 
     return fig
 
+def plot_knn_alignment_scores_across_k_and_distance_metrics(
+    emma: Emma,
+    feature: str,
+    k_values: List[int] = [5, 10],
+    metrics: List[str] = ["euclidean"],
+    use_annoy: bool = False,
+    annoy_metric: str = None,
+    n_trees: int = None,
+    adjust_for_imbalance: bool = False,
+) -> go.Figure:
+
+    knn_alignment_scores_df = pd.DataFrame(columns=["Sample", "Class", "Fraction", "Embedding", "k", "distance_metric"])
+    sample_ids = emma.sample_names
+    
+    for distance_metric in metrics:
+        for k_value in k_values:
+            print(f"Calculating KNN alignment scores for {distance_metric} with k={k_value}...")
+            knn_alignment_scores = get_knn_alignment_scores(
+                emma,
+                feature=feature,
+                k=k_value,
+                metric=distance_metric,
+                use_annoy=use_annoy,
+                annoy_metric=annoy_metric,
+                n_trees=n_trees,
+                adjust_for_imbalance=adjust_for_imbalance,
+            )
+            knn_alignment_scores["k"] = k_value
+            knn_alignment_scores["distance_metric"] = distance_metric
+            knn_alignment_scores["Sample"] = np.tile(sample_ids, len(emma.emb.keys()))
+            # merge with the existing dataframe
+            knn_alignment_scores_df = pd.concat([knn_alignment_scores_df, knn_alignment_scores], ignore_index=True)        
+    
+    df_grouped = (
+        knn_alignment_scores_df
+        .groupby(["k", "Embedding", "distance_metric"], as_index=False)
+        .agg({"Fraction": "mean"})
+    )
+    df_grouped = df_grouped.sort_values(by=["Embedding", "k"])
+    
+    fig = px.line(
+        df_grouped,
+        x="k",
+        y="Fraction",
+        color="Embedding",
+        facet_col="distance_metric",
+        markers=True,
+    )
+    
+    fig.update_layout(
+        yaxis_title="Mean KNN feature<br>alignment score",
+        template="plotly_white",
+        font={"family": "Arial", "color": "black", "size": 12},
+        legend_title_text="Embedding models",
+        width=1200,
+        height=500,
+    )
+    
+    fig.update_traces(marker=dict(size=10), line=dict(width=4))
+    
+    for axis in fig.layout:
+        if axis.startswith('xaxis'):
+            fig.layout[axis].update(
+                        showgrid=False,
+                        linecolor='black',
+                        linewidth=3,
+                        ticks='outside',
+                        tickwidth=2,
+                        tickcolor='black',
+                        ticklen=6,
+                        tickformat=".0f"
+                    )
+        if axis.startswith('yaxis'):
+            fig.layout[axis].update(
+                showgrid=False,
+                linecolor='black',
+                linewidth=3,
+                ticks='outside',
+                tickwidth=2,
+                tickcolor='black',
+                ticklen=6,
+                tickformat=".2f",
+                dtick=0.05
+            )    
+
+    for annotation in fig.layout.annotations:
+        if '=' in annotation.text:
+            annotation.text = annotation.text.split('=')[1]
+                
+    fig.update_layout(
+        title=dict(
+            x=0,
+            xanchor='left'
+        ),
+        legend=dict(
+            orientation='h',
+            x=0.48,
+            y=1.05,
+            xanchor='center',
+            yanchor='bottom'
+        ),
+        margin=dict(t=120)
+    )
+    
+    return fig
+    
+    
+    
+                
 
 def plot_knn_class_mixing_matrix(
     emma: Emma,
