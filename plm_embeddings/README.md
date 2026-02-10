@@ -56,7 +56,7 @@ python plm_embeddings/get_embeddings.py \
     --input data/proteins.fasta \
     --model esm3-sm-open-v1 \
     --output_dir outputs/esm3_embeddings \
-    --per_protein True
+    --per_protein
 ```
 
 ### Arguments
@@ -70,7 +70,7 @@ python plm_embeddings/get_embeddings.py \
 |--no_gpu	|flag	|False	|Flag to disable GPU usage|
 |--dev	|flag	|False	|Flag to enable development mode (shortening input data)|
 |--layer	|int	|-1	|Layer index to extract embeddings from|
-|--per_protein	|bool	|False	|Aggregate embeddings per protein|
+|--per_protein	|flag	|False	|Flag to aggregate embeddings per protein|
 |--output_format	|str	|npy	|File format for the embeddings|
 |--max_seq_length	|int	|1022	|Maximum sequence length. Sequences longer than this will be chopped.|
 |--chunk_overlap	|int	|300	|Overlap size between chunks|
