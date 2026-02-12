@@ -89,7 +89,7 @@ class Esm3(EmbeddingHandler):
                     if per_protein:
                         embedding = logits_output.embeddings.mean(dim=1).cpu().numpy()[0]
                     else:
-                        embedding = logits_output.embeddings.cpu().numpy()[0]
+                        embedding = logits_output.embeddings.cpu().numpy()[0][1:-1]
                 
                 np.save(
                         output_file,
