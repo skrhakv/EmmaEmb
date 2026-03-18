@@ -50,7 +50,7 @@ class Emma:
         """
         numerical_columns = (
             self.metadata.iloc[:, 1:]
-            .select_dtypes(include=["int64", "float64"])
+            .select_dtypes(include=np.number)
             .columns.tolist()
         )
 
